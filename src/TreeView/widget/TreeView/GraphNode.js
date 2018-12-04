@@ -284,21 +284,88 @@ define([
             } else {
                 c._retrieving = true;
                 c._afterChildrenCb = callback ? [callback] : []; //event chain
+                if (c.type.dataSource === "XPath"){
+                    this._retrieveChildrenCoreXPath(c, lang.hitch(this, function () {
+                        c._retrieving = false;
+                        c.knowsChildren = true;
 
-                this._retrieveChildrenCore(c, lang.hitch(this, function () {
-                    c._retrieving = false;
-                    c.knowsChildren = true;
+                        var f;
+                        while (f = c._afterChildrenCb.shift()) {
+                            f();
+                        }
+                    }));
+                } else {
+                    this._retrieveChildrenCoreMicroflow(c, lang.hitch(this, function () {
+                        c._retrieving = false;
+                        c.knowsChildren = true;
 
-                    var f;
-                    while (f = c._afterChildrenCb.shift()) {
-                        f();
-                    }
-                }));
+                        var f;
+                        while (f = c._afterChildrenCb.shift()) {
+                            f();
+                        }
+                    }));
+                }
             }
         },
+        _retrieveChildrenCoreMicroflow: function (c, callback) {
+            logger.debug("TreeView.widget.GraphNode._retrieveChildrenCoreMicroflow");
+            var type = c.type;
+            mx.ui.action(type.microflowSource, {
+                origin: this.mxform,
+                params: {
+                    applyto: "selection",
+                    guids: [ this.guid.toString() ]
+                    
+                },
+                callback: lang.hitch(this, function (rel, data) {
+                    //1. mark edges from here in here invalid
+                    var edges = this.tree.getChildEdges(this)[rel.index];
+                    for (var childguid in edges) {
+                        edges[childguid]._valid = false;
+                    }
 
-        _retrieveChildrenCore: function (c, callback) {
-            logger.debug("TreeView.widget.GraphNode._retrieveChildrenCore");
+                    try {
+                        //if a cacheburst is used, child to parent edgets are not created automatically to avoid byposing constraints.
+                        //however, here, we now that the constraint is allowed to be bypassed since we are loading exactly that relation
+                        //store this in flag.
+                        this.tree._currentLoadingRel = rel;
+                        this.tree.processData(data);
+                    }
+                    finally {
+                        delete this._currentLoadingRel;
+                    }
+
+                    //3. create the edge if from parent, update index, update valid state
+                    for (var i = 0; i < data.length; i++) {
+                        var guid = data[i].getGuid();
+                        var child = this.tree.dict[guid];
+
+                        var edge =
+                            type.assoctype == "fromparent"
+                                //3a. if this object is the owner of the association, the edges are not created automatically by process data, create them now
+                                ? this.tree.findOrCreateEdge(type, this, child, this)
+                                //3b. otherise, still retrieve the edge to update the index if necessary
+                                : this.tree.findOrCreateEdge(type, this, child, child);
+
+                        edge.updateIndex(i);
+
+                        //we now for sure it is valid now
+                        edge._valid = true;
+                    }
+
+                    //4. remove invalid children after receiving all data (no need to refetch them)
+                    for (var childguid2 in edges)
+                        if (!edges[childguid2]._valid)
+                            edges[childguid2].free();
+
+                    callback(); //wait with callback until all requests are completed
+                }, type),
+                error: this.tree.showError
+            }, this);
+        },
+
+        _retrieveChildrenCoreXPath: function (c, callback) {
+            logger.debug("TreeView.widget.GraphNode._retrieveChildrenCoreXPath");
             var type = c.type;
 
             //self references leaving from the parent need a recursive constraint

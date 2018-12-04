@@ -124,6 +124,26 @@ It is allowed to add an additional relation, with association direction 'The ass
 					<category>1) Define the relation</category>
 					<description></description>
 				</property>
+				<property key="dataSource" type="enumeration" defaultValue="XPath">
+					<caption>Source</caption>
+					<category>1) Define the relation</category>
+					<description>Only use microflow in 'Pre-fetch data = no'</description>
+					<enumerationValues>
+						<enumerationValue key="XPath">XPath</enumerationValue>
+						<enumerationValue key="microflow">Microflow</enumerationValue>
+					</enumerationValues>
+				</property>
+				<property key="entityResult" type="entity" required="false">
+					<caption>Child entity</caption>
+					<category>1) Define the relation</category>
+					<description>For data source Microflow</description>
+				</property>				
+				<property key="microflowSource" type="microflow" required="false" entityProperty="entity">
+					<caption>Source microflow</caption>
+					<category>1) Define the relation</category>
+					<description>For data source Microflow</description>
+					<returnType isList="true" type="Object" entityProperty="entityResult"/>
+				</property>
 				<property key="parentassocsingle" type="entity" entityProperty="entity" isPath="optional" pathType="reference" required="false">
 					<caption>Association (reference)</caption>
 					<category>1) Define the relation</category>
